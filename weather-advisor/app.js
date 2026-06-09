@@ -1,6 +1,5 @@
 // ============================================================
-// WEATHER ADVISOR — app.js
-// UI, запросы к API, оркестрация
+// WEATHER ADVISOR — app.js v3
 // ============================================================
 
 const state = {
@@ -178,16 +177,14 @@ function renderResult(result) {
   const trendText  = { falling: 'снижается', rising: 'растёт', stable: 'стабильное', unstable: 'нестабильное' };
   const cloudText  = w.cloudcover < 30 ? 'Ясно' : w.cloudcover < 70 ? 'Переменная' : 'Пасмурно';
   const rainText   = w.precipitation < 0.1 ? 'Нет' : `${w.precipitation.toFixed(1)} мм`;
-
-  // Конвертация гПа → мм рт.ст. для отображения
   const pressureMmhg = hpaToMmhg(w.pressure);
 
   const items = [
-    { icon: '🌡', value: `${w.temp.toFixed(1)}°C`, label: 'Температура воздуха' },
+    { icon: '🌡', value: `${w.temp.toFixed(1)}°C`,    label: 'Температура воздуха' },
     { icon: '📊', value: `${pressureMmhg} <span class="trend-arrow ${trendClass[w.pressureTrend]}">${trendLabel[w.pressureTrend]}</span>`, label: `Давление мм рт.ст., ${trendText[w.pressureTrend]}` },
     { icon: '💨', value: `${w.windspeed.toFixed(1)} м/с`, label: `Ветер, ${w.winddirLabel}` },
-    { icon: '☁', value: cloudText, label: 'Облачность' },
-    { icon: '🌧', value: rainText, label: 'Осадки' },
+    { icon: '☁',  value: cloudText,   label: 'Облачность' },
+    { icon: '🌧', value: rainText,    label: 'Осадки' },
     result.waterTemp !== null ? { icon: '🌊', value: `~${result.waterTemp.toFixed(1)}°C`, label: 'Темп. воды (расч.)' } : null,
   ].filter(Boolean);
 
@@ -213,17 +210,23 @@ function renderResult(result) {
 
   const rec = result.recommendation;
   if (rec) {
-    document.getElementById('rec-details').innerHTML = [
+    const rows = [
       rec.lure   ? { key: 'Приманка', val: rec.lure }   : null,
       rec.color  ? { key: 'Цвет',     val: rec.color }   : null,
       rec.tactic ? { key: 'Тактика',  val: rec.tactic }  : null,
       rec.depth  ? { key: 'Горизонт', val: rec.depth }   : null,
-    ].filter(Boolean).map(r =>
+    ].filter(Boolean);
+    document.getElementById('rec-details').innerHTML = rows.map(r =>
       `<div class="rec-row"><div class="rec-key">${r.key}</div><div class="rec-val">${r.val}</div></div>`
     ).join('');
   }
 
-  document.getElementById('water-location').textContent = result.waterLocation;
+  // Блок «где искать» + тактическая поправка по водоёму
+  const waterLocEl = document.getElementById('water-location');
+  let waterText = result.waterLocation || '';
+  if (result.waterTacticNote) waterText += `\n\n${result.waterTacticNote}`;
+  waterLocEl.textContent = waterText;
+
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -235,7 +238,10 @@ submitBtn.addEventListener('click', async () => {
   try {
     const hourlyData = await fetchWeather(state.lat, state.lon);
     state.hourlyData = hourlyData;
-    const result = analyze({ species: state.species, method: state.method, waterType: state.watertype, timePeriod: state.time, targetDate: state.date + 'T12:00:00' }, hourlyData);
+    const result = analyze(
+      { species: state.species, method: state.method, waterType: state.watertype, timePeriod: state.time, targetDate: state.date + 'T12:00:00' },
+      hourlyData
+    );
     if (!result) throw new Error('no_data');
     renderResult(result);
   } catch (e) {

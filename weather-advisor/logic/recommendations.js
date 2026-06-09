@@ -1,14 +1,14 @@
 // ============================================================
-// ЛОГИКА РЕКОМЕНДАЦИЙ v2
+// ЛОГИКА РЕКОМЕНДАЦИЙ v3
 // weather-advisor/logic/recommendations.js
 //
-// buildInsights() строит инсайты иерархически из BEHAVIOR_NOTES:
+// Иерархия инсайтов:
 //   1. Температура воды (главный фактор)
-//   2. Свет × время суток
-//   3. Тренд давления (как индикатор смены погоды)
-//   4. Ветер
-//   5. Осадки
-//   6. Нерест
+//   2. Сценарный инсайт (погодный сценарий × время суток)
+//      — заменяет отдельные light/wind/rain инсайты
+//   3. Тренд давления (только если нет сценария P5_front)
+//   4. Сезонная поправка
+//   5. Нерест
 // ============================================================
 
 function getWaterTemp(hourlyData, waterType) {
@@ -69,6 +69,27 @@ function getRainCategory(precipitation, precipHours) {
   return 'rain';
 }
 
+function getSeason(month) {
+  if (month >= 3 && month <= 5)  return 'spring';
+  if (month >= 6 && month <= 8)  return 'summer';
+  if (month >= 9 && month <= 11) return 'autumn';
+  return null; // декабрь–февраль — зима, не ловим
+}
+
+// Определяем погодный сценарий P1–P5
+function getWeatherScenario(lightCondition, windCat, rainCat, pressureTrend) {
+  // P5: смена погоды — нестабильное давление доминирует над остальным
+  if (pressureTrend === 'unstable' || pressureTrend === 'rising') return 'P5_front';
+  // P4: осадки
+  if (rainCat !== 'none') return 'P4_rain';
+  // P3: пасмурно
+  if (lightCondition === 'cloudy' || lightCondition === 'overcast') return 'P3_cloudy';
+  // P2: ясно + ветер
+  if (lightCondition === 'sunny' && (windCat === 'light' || windCat === 'moderate' || windCat === 'strong')) return 'P2_windy_sunny';
+  // P1: ясно + штиль
+  return 'P1_calm_sunny';
+}
+
 function checkSpawnPeriod(species, waterTemp, month) {
   const sp = SPECIES_DATA[species];
   if (!sp || waterTemp === null) return null;
@@ -114,15 +135,13 @@ function getWindDirection(deg) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ИНСАЙТЫ v2 — иерархическая выборка из BEHAVIOR_NOTES
-// Каждый инсайт: поведение рыбы + следствие для рыбака.
-// Давление: только как индикатор смены погоды, не прямая причина.
+// ИНСАЙТЫ v3
 // ─────────────────────────────────────────────────────────────
-function buildInsights(species, conditions, spawnStatus, timePeriod, lightCondition, pressureTrend, windCat, rainCat) {
-  const notes = BEHAVIOR_NOTES[species];
-  if (!notes) return [];
+function buildInsights(species, conditions, spawnStatus, timePeriod, lightCondition, pressureTrend, windCat, rainCat, waterType, month) {
+  const notes  = BEHAVIOR_NOTES[species];
+  const sp     = SPECIES_DATA[species];
+  if (!notes || !sp) return [];
 
-  const sp = SPECIES_DATA[species];
   const insights = [];
   const wt = conditions.waterTemp;
 
@@ -140,44 +159,29 @@ function buildInsights(species, conditions, spawnStatus, timePeriod, lightCondit
       insights.push(notes.temp_cold);
   }
 
-  // ── 2. СВЕТ × ВРЕМЯ СУТОК ────────────────────────────────
-  const timeScore = sp.timeScore[timePeriod] || 0;
-  const isOffTime  = timeScore <= -2;
-  const isPeakTime = timeScore >= 2;
-
-  if (isOffTime && notes.time_off) {
-    insights.push(notes.time_off);
-  } else if (lightCondition === 'sunny' && timePeriod === 'day' && notes.light_sunny_day) {
-    insights.push(notes.light_sunny_day);
-  } else if ((lightCondition === 'cloudy' || lightCondition === 'overcast') && notes.light_cloudy) {
-    insights.push(notes.light_cloudy);
-  } else if (isPeakTime && notes.time_peak) {
-    insights.push(notes.time_peak);
+  // ── 2. СЦЕНАРНЫЙ ИНСАЙТ (погода × время суток) ──────────
+  const scenario = getWeatherScenario(lightCondition, windCat, rainCat, pressureTrend);
+  const scenarioData = SCENARIO_INSIGHTS[species] && SCENARIO_INSIGHTS[species][scenario];
+  if (scenarioData) {
+    const timeKey = (timePeriod === 'morning') ? 'morning'
+                  : (timePeriod === 'evening') ? 'evening'
+                  : (timePeriod === 'night')   ? 'evening'  // ночь → используем вечер как ближайший
+                  : 'day';
+    const text = scenarioData[timeKey] || scenarioData['default'];
+    if (text) insights.push(text);
   }
 
-  // ── 3. ТРЕНД ДАВЛЕНИЯ ────────────────────────────────────
+  // ── 3. ТРЕНД ДАВЛЕНИЯ (только falling — активизация) ─────
+  // P5 (rising/unstable) уже покрыт сценарием, falling — нет
   if (pressureTrend === 'falling' && notes.pressure_falling)
     insights.push(notes.pressure_falling);
-  else if (pressureTrend === 'rising' && notes.pressure_rising)
-    insights.push(notes.pressure_rising);
-  else if (pressureTrend === 'unstable' && notes.pressure_unstable)
-    insights.push(notes.pressure_unstable);
 
-  // ── 4. ВЕТЕР ─────────────────────────────────────────────
-  if ((windCat === 'light' || windCat === 'moderate') && notes.wind_light)
-    insights.push(notes.wind_light);
-  else if (windCat === 'strong' && notes.wind_strong)
-    insights.push(notes.wind_strong);
+  // ── 4. СЕЗОННАЯ ПОПРАВКА ─────────────────────────────────
+  const season = getSeason(month);
+  if (season && SEASON_NOTES[species] && SEASON_NOTES[species][season])
+    insights.push(SEASON_NOTES[species][season]);
 
-  // ── 5. ОСАДКИ ────────────────────────────────────────────
-  if (rainCat === 'drizzle' && notes.rain_drizzle)
-    insights.push(notes.rain_drizzle);
-  else if (rainCat === 'heavy' && notes.rain_heavy)
-    insights.push(notes.rain_heavy);
-  else if (rainCat === 'prolonged' && notes.rain_prolonged)
-    insights.push(notes.rain_prolonged);
-
-  // ── 6. НЕРЕСТ ────────────────────────────────────────────
+  // ── 5. НЕРЕСТ ────────────────────────────────────────────
   if (spawnStatus === 'pre-spawn' && notes.spawn_pre)
     insights.push(notes.spawn_pre);
   else if (spawnStatus === 'post-spawn' && notes.spawn_post)
@@ -218,7 +222,9 @@ function analyze(params, hourlyData) {
   const rainCat        = getRainCategory(weather.precipitation, weather.precipHours);
   const month          = new Date(targetDate).getMonth() + 1;
   const spawnStatus    = checkSpawnPeriod(species, waterTemp, month);
+  const season         = getSeason(month);
 
+  // ── Скоринг ──────────────────────────────────────────────
   let score = 0;
   if (waterTemp !== null) {
     const [tMin, tMax] = sp.tempRange;
@@ -238,11 +244,17 @@ function analyze(params, hourlyData) {
   score += sp.windScore[windCat] || 0;
   score += sp.rainScore[rainCat] || 0;
 
-  const rating   = scoreToRating(score);
-  const rec      = buildRecommendation(species, method, lightCondition, rainCat, windCat);
+  const rating = scoreToRating(score);
+  const rec    = buildRecommendation(species, method, lightCondition, rainCat, windCat);
+
+  // Тактическая поправка по водоёму
+  const waterTacticNote = WATER_TACTIC_NOTES[species] && WATER_TACTIC_NOTES[species][waterType]
+    ? WATER_TACTIC_NOTES[species][waterType] : null;
+
   const insights = buildInsights(
     species, { waterTemp }, spawnStatus,
-    timePeriod, lightCondition, pressureTrend, windCat, rainCat
+    timePeriod, lightCondition, pressureTrend, windCat, rainCat,
+    waterType, month
   );
 
   return {
@@ -260,6 +272,7 @@ function analyze(params, hourlyData) {
     },
     waterTemp,
     waterLocation: sp.waterType[waterType],
+    waterTacticNote,
     recommendation: rec,
     insights,
   };

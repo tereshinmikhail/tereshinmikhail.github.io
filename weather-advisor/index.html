@@ -18,7 +18,7 @@
 
 <header class="page-header">
   <div class="header-inner">
-    <a href="../" class="back-link">← все инструменты</a>
+    <a href="../" class="back-link">&larr; все инструменты</a>
     <h1>Погодный советник</h1>
     <p class="subtitle">Прогноз условий ловли на основе реального прогноза погоды</p>
   </div>
@@ -27,10 +27,8 @@
 <main class="content">
   <div class="layout">
 
-    <!-- ========== ФОРМА ========== -->
     <section class="form-section">
 
-      <!-- Локация -->
       <div class="form-group">
         <label class="group-label">Место ловли</label>
         <div class="location-inputs">
@@ -43,43 +41,39 @@
             <div id="coords-error" class="field-error" hidden></div>
           </div>
         </div>
-        <p class="hint">Координаты можно скопировать из Яндекс Карт: правая кнопка → «Что здесь»</p>
+        <p class="hint">Координаты можно скопировать из Яндекс Карт: правая кнопка &rarr; &laquo;Что здесь&raquo;</p>
       </div>
 
-      <!-- Дата -->
       <div class="form-group">
         <label class="group-label">Дата рыбалки</label>
         <div class="chip-group" id="date-chips" role="group" aria-label="Дата рыбалки"></div>
         <div id="accuracy-warning" class="accuracy-warning" hidden>
-          ⚠ Прогноз на 3+ дня носит ориентировочный характер. Современные модели теряют точность после 2–3 суток. Рекомендуем повторить запрос накануне или в день рыбалки.
+          &warning; Прогноз на 3+ дня носит ориентировочный характер. Современные модели теряют точность после 2&ndash;3 суток. Рекомендуем повторить запрос накануне или в день рыбалки.
         </div>
       </div>
 
-      <!-- Время суток -->
       <div class="form-group">
         <label class="group-label">Время ловли</label>
         <div class="chip-group" role="group" aria-label="Время ловли">
-          <button class="chip" data-group="time" data-value="morning">Утро<span class="chip-sub">5–10</span></button>
-          <button class="chip" data-group="time" data-value="day">День<span class="chip-sub">10–17</span></button>
-          <button class="chip" data-group="time" data-value="evening">Вечер<span class="chip-sub">17–22</span></button>
-          <button class="chip" data-group="time" data-value="night">Ночь<span class="chip-sub">22–5</span></button>
+          <button class="chip" data-group="time" data-value="morning">Утро<span class="chip-sub">5&ndash;10</span></button>
+          <button class="chip" data-group="time" data-value="day">День<span class="chip-sub">10&ndash;17</span></button>
+          <button class="chip" data-group="time" data-value="evening">Вечер<span class="chip-sub">17&ndash;22</span></button>
+          <button class="chip" data-group="time" data-value="night">Ночь<span class="chip-sub">22&ndash;5</span></button>
         </div>
       </div>
 
-      <!-- Вид рыбы -->
       <div class="form-group">
         <label class="group-label">Целевой вид</label>
         <div class="chip-group" role="group" aria-label="Вид рыбы">
           <button class="chip" data-group="species" data-value="pike">Щука</button>
           <button class="chip" data-group="species" data-value="zander">Судак</button>
           <button class="chip" data-group="species" data-value="perch">Окунь</button>
-          <button class="chip" data-group="species" data-value="asp">Жерех</button>
+          <button class="chip" data-group="species" data-value="asp">&Жерех;</button>
           <button class="chip" data-group="species" data-value="chub">Голавль</button>
           <button class="chip" data-group="species" data-value="catfish">Сом</button>
         </div>
       </div>
 
-      <!-- Тип водоёма -->
       <div class="form-group">
         <label class="group-label">Тип водоёма</label>
         <div class="chip-group" role="group" aria-label="Тип водоёма">
@@ -91,7 +85,6 @@
         </div>
       </div>
 
-      <!-- Метод ловли -->
       <div class="form-group">
         <label class="group-label">Метод ловли</label>
         <div class="chip-group" role="group" aria-label="Метод ловли">
@@ -109,7 +102,6 @@
 
     </section>
 
-    <!-- ========== РЕЗУЛЬТАТ ========== -->
     <section id="result-section" class="result-section" hidden>
 
       <div class="result-block">
@@ -138,11 +130,14 @@
 </main>
 
 <footer class="page-footer">
-  <p>Данные: Open-Meteo (ECMWF / DWD ICON) · Геокодинг: OpenStreetMap Nominatim</p>
+  <p>Данные: Open-Meteo (ECMWF / DWD ICON) &middot; Геокодинг: OpenStreetMap Nominatim</p>
 </footer>
 
 <script src="data/recommendations-data.js"></script>
 <script src="data/behavior-notes.js"></script>
+<script src="data/scenario-insights.js"></script>
+<script src="data/season-notes.js"></script>
+<script src="data/water-tactic-notes.js"></script>
 <script src="logic/recommendations.js"></script>
 <script src="app.js"></script>
 </body>
