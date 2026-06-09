@@ -4,7 +4,9 @@
 // ============================================================
 
 function getWaterTemp(hourlyData, waterType) {
-  const hours = (waterType === 'pond') ? 72 : 120;
+  // Малые водоёмы (карьер, пруд, малая река) прогреваются быстрее — 3 суток (72 ч)
+  // Крупные (водохранилище, озеро, большая река) — 5 суток (120 ч)
+  const hours = (waterType === 'pond' || waterType === 'river_small') ? 72 : 120;
   const now = new Date();
   const temps = [];
   for (let i = 0; i < hourlyData.time.length; i++) {
@@ -181,7 +183,8 @@ function buildRecommendation(species, method, lightCondition, rainCat, windCat) 
   let condition = lightCondition === 'sunny' ? 'sunny' : 'cloudy';
   if (['rain','heavy','prolonged'].includes(rainCat)) condition = 'rain';
   if (windCat === 'strong') condition = 'wind';
-  const m = { spinning: 'spinning', float: 'float', bottom: 'bottom' }[method] || 'spinning';
+  // Методы: только spinning и bottom
+  const m = (method === 'bottom') ? 'bottom' : 'spinning';
   return sp[m][condition] || sp[m]['cloudy'];
 }
 
