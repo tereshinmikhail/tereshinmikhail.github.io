@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+   (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=109350380','ym');
+   ym(109350380,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:"dataLayer",referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/109350380" style="position:absolute;left:-9999px;" alt=""/></div></noscript>
+<!-- /Yandex.Metrika counter -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Погодный советник рыболова</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="page-header">
+  <div class="header-inner">
+    <a href="../" class="back-link">← все инструменты</a>
+    <h1>Погодный советник</h1>
+    <p class="subtitle">Прогноз условий ловли на основе реального прогноза погоды</p>
+  </div>
+</header>
+
+<main class="content">
+  <div class="layout">
+
+    <!-- ========== ФОРМА ========== -->
+    <section class="form-section">
+
+      <!-- Локация -->
+      <div class="form-group">
+        <label class="group-label">Место ловли</label>
+        <div class="location-inputs">
+          <div class="city-search-wrap">
+            <input type="text" id="city-input" class="text-input" placeholder="Название города или водоёма" autocomplete="off">
+            <div id="city-dropdown" class="city-dropdown" hidden></div>
+          </div>
+          <div class="coords-wrap">
+            <input type="text" id="coords-input" class="text-input" placeholder="или координаты: 55.5731, 37.9082">
+            <div id="coords-error" class="field-error" hidden></div>
+          </div>
+        </div>
+        <p class="hint">Координаты можно скопировать из Яндекс Карт: правая кнопка → «Что здесь»</p>
+      </div>
+
+      <!-- Дата -->
+      <div class="form-group">
+        <label class="group-label">Дата рыбалки</label>
+        <div class="chip-group" id="date-chips" role="group" aria-label="Дата рыбалки"></div>
+        <div id="accuracy-warning" class="accuracy-warning" hidden>
+          ⚠ Прогноз на 3+ дня носит ориентировочный характер. Современные модели теряют точность после 2–3 суток. Рекомендуем повторить запрос накануне или в день рыбалки.
+        </div>
+      </div>
+
+      <!-- Время суток -->
+      <div class="form-group">
+        <label class="group-label">Время ловли</label>
+        <div class="chip-group" role="group" aria-label="Время ловли">
+          <button class="chip" data-group="time" data-value="morning">Утро<span class="chip-sub">5–10</span></button>
+          <button class="chip" data-group="time" data-value="day">День<span class="chip-sub">10–17</span></button>
+          <button class="chip" data-group="time" data-value="evening">Вечер<span class="chip-sub">17–22</span></button>
+          <button class="chip" data-group="time" data-value="night">Ночь<span class="chip-sub">22–5</span></button>
+        </div>
+      </div>
+
+      <!-- Вид рыбы -->
+      <div class="form-group">
+        <label class="group-label">Целевой вид</label>
+        <div class="chip-group" role="group" aria-label="Вид рыбы">
+          <button class="chip" data-group="species" data-value="pike">Щука</button>
+          <button class="chip" data-group="species" data-value="zander">Судак</button>
+          <button class="chip" data-group="species" data-value="perch">Окунь</button>
+          <button class="chip" data-group="species" data-value="asp">Жерех</button>
+          <button class="chip" data-group="species" data-value="chub">Голавль</button>
+          <button class="chip" data-group="species" data-value="catfish">Сом</button>
+        </div>
+      </div>
+
+      <!-- Тип водоёма -->
+      <div class="form-group">
+        <label class="group-label">Тип водоёма</label>
+        <div class="chip-group" role="group" aria-label="Тип водоёма">
+          <button class="chip" data-group="watertype" data-value="river">Река</button>
+          <button class="chip" data-group="watertype" data-value="reservoir">Водохранилище</button>
+          <button class="chip" data-group="watertype" data-value="lake">Озеро</button>
+          <button class="chip" data-group="watertype" data-value="pond">Карьер / Пруд</button>
+        </div>
+      </div>
+
+      <!-- Метод ловли -->
+      <div class="form-group">
+        <label class="group-label">Метод ловли</label>
+        <div class="chip-group" role="group" aria-label="Метод ловли">
+          <button class="chip" data-group="method" data-value="spinning">Спиннинг</button>
+          <button class="chip" data-group="method" data-value="float">Поплавок</button>
+          <button class="chip" data-group="method" data-value="bottom">Донка</button>
+        </div>
+      </div>
+
+      <button id="submit-btn" class="submit-btn" disabled>
+        <span id="submit-label">Составить план</span>
+        <span id="submit-loader" class="loader" hidden></span>
+      </button>
+
+      <div id="api-error" class="api-error" hidden></div>
+
+    </section>
+
+    <!-- ========== РЕЗУЛЬТАТ ========== -->
+    <section id="result-section" class="result-section" hidden>
+
+      <!-- Блок 1: Погодная сводка -->
+      <div class="result-block">
+        <div class="block-label">Погодная сводка</div>
+        <div id="weather-grid" class="weather-grid"></div>
+      </div>
+
+      <!-- Блок 2: Что это значит -->
+      <div class="result-block">
+        <div class="block-label">Что это значит для рыбалки</div>
+        <ul id="insights-list" class="insights-list"></ul>
+      </div>
+
+      <!-- Блок 3: Рекомендация -->
+      <div class="result-block result-block--main">
+        <div id="rating-badge" class="rating-badge"></div>
+        <div class="block-label" style="margin-top:20px;">Рекомендация</div>
+        <div id="spawn-warning" class="spawn-warning" hidden></div>
+        <div id="rec-details" class="rec-details"></div>
+        <div id="water-location" class="water-location"></div>
+      </div>
+
+      <p class="result-disclaimer">Рекомендации основаны на подтверждённых закономерностях [наука] и [практика]. Фольклорные предположения исключены. Прогноз не гарантирует улов.</p>
+
+    </section>
+
+  </div>
+</main>
+
+<footer class="page-footer">
+  <p>Данные: Open-Meteo (ECMWF / DWD ICON) · Геокодинг: OpenStreetMap Nominatim</p>
+</footer>
+
+<script src="data/recommendations-data.js"></script>
+<script src="logic/recommendations.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
