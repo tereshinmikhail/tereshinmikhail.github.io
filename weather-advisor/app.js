@@ -22,6 +22,9 @@ const submitLoader  = document.getElementById('submit-loader');
 const apiError      = document.getElementById('api-error');
 const resultSection = document.getElementById('result-section');
 
+// гПа → мм рт.ст.
+function hpaToMmhg(hpa) { return Math.round(hpa / 1.33322); }
+
 function initDateChips() {
   const today = new Date();
   const days   = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
@@ -176,9 +179,12 @@ function renderResult(result) {
   const cloudText  = w.cloudcover < 30 ? 'Ясно' : w.cloudcover < 70 ? 'Переменная' : 'Пасмурно';
   const rainText   = w.precipitation < 0.1 ? 'Нет' : `${w.precipitation.toFixed(1)} мм`;
 
+  // Конвертация гПа → мм рт.ст. для отображения
+  const pressureMmhg = hpaToMmhg(w.pressure);
+
   const items = [
-    { icon: '🌡', value: `${w.temp.toFixed(1)}°C`, label: 'Температура' },
-    { icon: '📊', value: `${Math.round(w.pressure)} <span class="trend-arrow ${trendClass[w.pressureTrend]}">${trendLabel[w.pressureTrend]}</span>`, label: `Давление мм рт.ст., ${trendText[w.pressureTrend]}` },
+    { icon: '🌡', value: `${w.temp.toFixed(1)}°C`, label: 'Температура воздуха' },
+    { icon: '📊', value: `${pressureMmhg} <span class="trend-arrow ${trendClass[w.pressureTrend]}">${trendLabel[w.pressureTrend]}</span>`, label: `Давление мм рт.ст., ${trendText[w.pressureTrend]}` },
     { icon: '💨', value: `${w.windspeed.toFixed(1)} м/с`, label: `Ветер, ${w.winddirLabel}` },
     { icon: '☁', value: cloudText, label: 'Облачность' },
     { icon: '🌧', value: rainText, label: 'Осадки' },
