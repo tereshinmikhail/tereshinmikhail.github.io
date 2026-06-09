@@ -1,11 +1,17 @@
 // ============================================================
-// ЛОГИКА РЕКОМЕНДАЦИЙ
+// ЛОГИКА РЕКОМЕНДАЦИЙ v2
 // weather-advisor/logic/recommendations.js
+//
+// buildInsights() строит инсайты иерархически из BEHAVIOR_NOTES:
+//   1. Температура воды (главный фактор)
+//   2. Свет × время суток
+//   3. Тренд давления (как индикатор смены погоды)
+//   4. Ветер
+//   5. Осадки
+//   6. Нерест
 // ============================================================
 
 function getWaterTemp(hourlyData, waterType) {
-  // Малые водоёмы (карьер, пруд, малая река) прогреваются быстрее — 3 суток (72 ч)
-  // Крупные (водохранилище, озеро, большая река) — 5 суток (120 ч)
   const hours = (waterType === 'pond' || waterType === 'river_small') ? 72 : 120;
   const now = new Date();
   const temps = [];
@@ -107,67 +113,77 @@ function getWindDirection(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-function buildInsights(species, conditions, spawnStatus, timeScore, lightCondition, pressureTrend, windCat, rainCat) {
+// ─────────────────────────────────────────────────────────────
+// ИНСАЙТЫ v2 — иерархическая выборка из BEHAVIOR_NOTES
+// Каждый инсайт: поведение рыбы + следствие для рыбака.
+// Давление: только как индикатор смены погоды, не прямая причина.
+// ─────────────────────────────────────────────────────────────
+function buildInsights(species, conditions, spawnStatus, timePeriod, lightCondition, pressureTrend, windCat, rainCat) {
+  const notes = BEHAVIOR_NOTES[species];
+  if (!notes) return [];
+
   const sp = SPECIES_DATA[species];
   const insights = [];
   const wt = conditions.waterTemp;
 
+  // ── 1. ТЕМПЕРАТУРА ВОДЫ ───────────────────────────────────
   if (wt !== null) {
     const [tMin, tMax] = sp.tempRange;
     const [tIdMin, tIdMax] = sp.tempIdeal;
-    if (wt >= tIdMin && wt <= tIdMax)
-      insights.push(`Расчётная температура воды около ${wt.toFixed(1)}°C — в оптимальном диапазоне для ${sp.name.toLowerCase()}ы. Базовые условия благоприятные.`);
-    else if (wt < tMin)
-      insights.push(`Вода холоднее комфортного диапазона для ${sp.name.toLowerCase()}ы (${wt.toFixed(1)}°C). Замедляйте подачу приманки — рыба малоподвижна.`);
-    else if (wt > tMax && wt <= tMax + 3)
-      insights.push(`Вода теплее оптимума для ${sp.name.toLowerCase()}ы (${wt.toFixed(1)}°C). Ищите рыбу в прохладных местах, у родниковых выходов и на зорях.`);
-    else if (wt > tMax + 3)
-      insights.push(`Жара: расчётная температура воды ${wt.toFixed(1)}°C. Большинство хищников угнетены. Ловите только на рассвете и закате.`);
+    if (wt > tMax + 3 && notes.temp_hot)
+      insights.push(notes.temp_hot);
+    else if (wt > tMax && notes.temp_warm)
+      insights.push(notes.temp_warm);
+    else if (wt >= tIdMin && wt <= tIdMax && notes.temp_optimal)
+      insights.push(notes.temp_optimal);
+    else if (wt < tMin && notes.temp_cold)
+      insights.push(notes.temp_cold);
   }
 
-  if (species === 'zander') {
-    if (lightCondition === 'sunny' && timeScore < 0)
-      insights.push('Судак избегает яркого дневного света (особенность зрения с тапетумом). Ловите в сумерках, ночью или у дна на большой глубине.');
-    else if (timeScore >= 2)
-      insights.push('Для судака сейчас лучшее время — сумерки и ночь, когда тапетум даёт ему преимущество перед жертвой.');
-  } else if (species === 'catfish') {
-    if (timeScore < 0)
-      insights.push('Сом — ночной хищник. Пик активности 22:00–03:00. Дневная ловля результативна только в пасмурь или при дожде.');
-  } else if (lightCondition === 'overcast' || lightCondition === 'cloudy') {
-    insights.push('Пасмурное небо снижает освещённость — хищник охотится активнее и не только на зорях.');
-  } else if (lightCondition === 'sunny' && timeScore <= 0) {
-    insights.push('Яркое дневное освещение снижает активность засадных хищников. Ловите у укрытий и в тени.');
+  // ── 2. СВЕТ × ВРЕМЯ СУТОК ────────────────────────────────
+  const timeScore = sp.timeScore[timePeriod] || 0;
+  const isOffTime  = timeScore <= -2;
+  const isPeakTime = timeScore >= 2;
+
+  if (isOffTime && notes.time_off) {
+    insights.push(notes.time_off);
+  } else if (lightCondition === 'sunny' && timePeriod === 'day' && notes.light_sunny_day) {
+    insights.push(notes.light_sunny_day);
+  } else if ((lightCondition === 'cloudy' || lightCondition === 'overcast') && notes.light_cloudy) {
+    insights.push(notes.light_cloudy);
+  } else if (isPeakTime && notes.time_peak) {
+    insights.push(notes.time_peak);
   }
 
-  if (pressureTrend === 'falling')
-    insights.push('Давление снижается — вероятно приближение атмосферного фронта. Как правило, активность хищника перед сменой погоды кратковременно возрастает.');
-  else if (pressureTrend === 'rising')
-    insights.push('Давление быстро растёт — прошёл фронт, устанавливается антициклон. Как правило, клёв ухудшается на 1–2 дня.');
-  else if (pressureTrend === 'unstable')
-    insights.push('Давление неустойчиво последние 48 часов. Окунь особенно чувствителен к скачкам — возможна сниженная активность ещё 2–3 дня.');
+  // ── 3. ТРЕНД ДАВЛЕНИЯ ────────────────────────────────────
+  if (pressureTrend === 'falling' && notes.pressure_falling)
+    insights.push(notes.pressure_falling);
+  else if (pressureTrend === 'rising' && notes.pressure_rising)
+    insights.push(notes.pressure_rising);
+  else if (pressureTrend === 'unstable' && notes.pressure_unstable)
+    insights.push(notes.pressure_unstable);
 
-  if ((windCat === 'light' || windCat === 'moderate') && ['pike','perch','asp'].includes(species))
-    insights.push('Лёгкий ветер создаёт рябь, маскирующую хищника. Прибойный берег собирает малька — ловите там.');
-  else if (windCat === 'strong') {
-    if (['asp','chub'].includes(species))
-      insights.push('Сильный ветер загоняет жереха и голавля на глубину. Ищите рыбу в тихих местах или переключитесь на другой вид.');
-    else
-      insights.push('Сильный ветер: прибойный берег перспективен, но ловля некомфортна. Ищите прикрытые позиции.');
-  }
+  // ── 4. ВЕТЕР ─────────────────────────────────────────────
+  if ((windCat === 'light' || windCat === 'moderate') && notes.wind_light)
+    insights.push(notes.wind_light);
+  else if (windCat === 'strong' && notes.wind_strong)
+    insights.push(notes.wind_strong);
 
-  if (rainCat === 'drizzle' && ['pike','catfish'].includes(species))
-    insights.push('Мелкий дождь и морось — благоприятная погода для щуки и сома. Пасмурность продлевает активность на весь день.');
-  else if (rainCat === 'heavy')
-    insights.push('Сильный дождь мутит воду и угнетает клёв. Жерех и голавль практически не берут.');
-  else if (rainCat === 'prolonged')
-    insights.push('Затяжные осадки подняли уровень воды и замутили её. Виды, ориентирующиеся на зрение (жерех, голавль, судак), клюют хуже.');
+  // ── 5. ОСАДКИ ────────────────────────────────────────────
+  if (rainCat === 'drizzle' && notes.rain_drizzle)
+    insights.push(notes.rain_drizzle);
+  else if (rainCat === 'heavy' && notes.rain_heavy)
+    insights.push(notes.rain_heavy);
+  else if (rainCat === 'prolonged' && notes.rain_prolonged)
+    insights.push(notes.rain_prolonged);
 
-  if (spawnStatus === 'pre-spawn')
-    insights.push(`Преднерестовый жор ${sp.name.toLowerCase()}ы — один из лучших периодов в году. Используйте это время.`);
-  else if (spawnStatus === 'post-spawn')
-    insights.push(`Посленерестовый жор ${sp.name.toLowerCase()}ы — рыба активно восстанавливает силы. Отличное время для ловли.`);
+  // ── 6. НЕРЕСТ ────────────────────────────────────────────
+  if (spawnStatus === 'pre-spawn' && notes.spawn_pre)
+    insights.push(notes.spawn_pre);
+  else if (spawnStatus === 'post-spawn' && notes.spawn_post)
+    insights.push(notes.spawn_post);
 
-  return insights;
+  return insights.slice(0, 5);
 }
 
 function scoreToRating(score) {
@@ -183,7 +199,6 @@ function buildRecommendation(species, method, lightCondition, rainCat, windCat) 
   let condition = lightCondition === 'sunny' ? 'sunny' : 'cloudy';
   if (['rain','heavy','prolonged'].includes(rainCat)) condition = 'rain';
   if (windCat === 'strong') condition = 'wind';
-  // Методы: только spinning и bottom
   const m = (method === 'bottom') ? 'bottom' : 'spinning';
   return sp[m][condition] || sp[m]['cloudy'];
 }
@@ -205,7 +220,6 @@ function analyze(params, hourlyData) {
   const spawnStatus    = checkSpawnPeriod(species, waterTemp, month);
 
   let score = 0;
-
   if (waterTemp !== null) {
     const [tMin, tMax] = sp.tempRange;
     const [tIdMin, tIdMax] = sp.tempIdeal;
@@ -214,7 +228,6 @@ function analyze(params, hourlyData) {
     else score -= 2;
     if (waterTemp > tMax + 3) score -= 1;
   }
-
   if (spawnStatus === 'spawning') score -= 3;
   if (spawnStatus === 'pre-spawn' || spawnStatus === 'post-spawn') score += 1;
 
@@ -227,7 +240,10 @@ function analyze(params, hourlyData) {
 
   const rating   = scoreToRating(score);
   const rec      = buildRecommendation(species, method, lightCondition, rainCat, windCat);
-  const insights = buildInsights(species, { waterTemp }, spawnStatus, timeScore, lightCondition, pressureTrend, windCat, rainCat);
+  const insights = buildInsights(
+    species, { waterTemp }, spawnStatus,
+    timePeriod, lightCondition, pressureTrend, windCat, rainCat
+  );
 
   return {
     rating,
