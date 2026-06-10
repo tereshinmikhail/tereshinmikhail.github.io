@@ -116,6 +116,11 @@
 
       <div class="result-block result-block--main">
         <div id="rating-badge" class="rating-badge"></div>
+        <details class="score-breakdown" id="score-breakdown">
+          <summary>Как посчитана оценка</summary>
+          <div id="breakdown-rows" class="breakdown-rows"></div>
+          <p class="breakdown-note">Оценка относительна для выбранного вида: пороги откалиброваны по распределению достижимых условий каждого вида отдельно.</p>
+        </details>
         <div class="block-label" style="margin-top:20px;">Рекомендация</div>
         <div id="spawn-warning" class="spawn-warning" hidden></div>
         <div id="rec-details" class="rec-details"></div>
@@ -134,6 +139,7 @@
 </footer>
 
 <script src="data/recommendations-data.js"></script>
+<script src="data/scoring-config.js"></script>
 <script src="data/behavior-notes.js"></script>
 <script src="data/scenario-insights.js"></script>
 <script src="data/season-notes.js"></script>
