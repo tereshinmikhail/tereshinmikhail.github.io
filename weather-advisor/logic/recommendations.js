@@ -1,5 +1,5 @@
 // ============================================================
-// ЛОГИКА РЕКОМЕНДАЦИЙ v3
+// ЛОГИКА РЕКОМЕНДАЦИЙ v3.1
 // weather-advisor/logic/recommendations.js
 //
 // Иерархия инсайтов:
@@ -9,39 +9,65 @@
 //   3. Тренд давления (только если нет сценария P5_front)
 //   4. Сезонная поправка
 //   5. Нерест
+//
+// v3.1: вся работа со временем — на строках ISO из Open-Meteo
+// (время локальное для точки ловли, timezone=auto в запросе).
+// Объекты Date для сравнения часов/дат не используются —
+// это исключает сдвиги UTC/локального времени браузера.
 // ============================================================
 
-function getWaterTemp(hourlyData, waterType) {
-  const hours = (waterType === 'pond' || waterType === 'river_small') ? 72 : 120;
-  const now = new Date();
-  const temps = [];
+// ── Вспомогательные функции работы со временем ──────────────
+
+// 'YYYY-MM-DD' + n дней → 'YYYY-MM-DD' (арифметика в UTC, безопасно)
+function dateShift(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Индекс элемента hourly-массива для даты и часа (или -1)
+function findHourIndex(hourlyData, dateStr, hour) {
+  const target = dateStr + 'T' + String(hour).padStart(2, '0');
   for (let i = 0; i < hourlyData.time.length; i++) {
-    const t = new Date(hourlyData.time[i]);
-    if (t <= now && t >= new Date(now - hours * 3600 * 1000)) temps.push(hourlyData.temperature_2m[i]);
+    if (hourlyData.time[i].startsWith(target)) return i;
   }
+  return -1;
+}
+
+// ── Температура воды ─────────────────────────────────────────
+// Средняя температура воздуха за окно, заканчивающееся
+// в полдень ЦЕЛЕВОЙ даты (а не «сейчас»): для рыбалки через
+// несколько дней используется уже загруженный прогноз.
+function getWaterTemp(hourlyData, waterType, dateStr) {
+  const windowHours = (waterType === 'pond' || waterType === 'river_small') ? 72 : 120;
+  let end = findHourIndex(hourlyData, dateStr, 12);
+  if (end === -1) end = hourlyData.time.length - 1;
+  const start = Math.max(0, end - windowHours);
+  const temps = hourlyData.temperature_2m.slice(start, end + 1).filter(t => t !== null && t !== undefined);
   if (temps.length === 0) return null;
   return temps.reduce((a, b) => a + b, 0) / temps.length;
 }
 
-function getPressureTrend(hourlyData, targetTime) {
-  const target = new Date(targetTime);
-  const prev12 = new Date(target - 12 * 3600 * 1000);
-  const prev48 = new Date(target - 48 * 3600 * 1000);
-  const getPressureAt = (dt) => {
-    let closest = null, minDiff = Infinity;
-    for (let i = 0; i < hourlyData.time.length; i++) {
-      const diff = Math.abs(new Date(hourlyData.time[i]) - dt);
-      if (diff < minDiff) { minDiff = diff; closest = hourlyData.pressure_msl[i]; }
-    }
-    return closest;
-  };
-  const pNow = getPressureAt(target);
-  const p12  = getPressureAt(prev12);
-  const p48  = getPressureAt(prev48);
-  if (pNow === null || p12 === null) return 'stable';
+// ── Тренд давления ───────────────────────────────────────────
+// Якорь — середина выбранного периода ловли.
+// Массив hourly непрерывен по часам, поэтому −12ч и −48ч —
+// это просто сдвиг индекса.
+const PERIOD_MID_HOUR = { morning: 7, day: 13, evening: 19, night: 23 };
+
+function getPressureTrend(hourlyData, dateStr, timePeriod) {
+  const anchorHour = PERIOD_MID_HOUR[timePeriod] !== undefined ? PERIOD_MID_HOUR[timePeriod] : 12;
+  const idx = findHourIndex(hourlyData, dateStr, anchorHour);
+  if (idx === -1 || idx - 12 < 0) return 'stable';
+  const p = hourlyData.pressure_msl;
+  const pNow = p[idx];
+  const p12  = p[idx - 12];
+  if (pNow === null || pNow === undefined || p12 === null || p12 === undefined) return 'stable';
   const delta12 = pNow - p12;
-  const delta48 = p48 !== null ? pNow - p48 : 0;
-  const unstable = p48 !== null && Math.abs(delta48) > 4 && Math.sign(delta12) !== Math.sign(delta48);
+  let delta48 = null;
+  if (idx - 48 >= 0 && p[idx - 48] !== null && p[idx - 48] !== undefined) {
+    delta48 = pNow - p[idx - 48];
+  }
+  const unstable = delta48 !== null && Math.abs(delta48) > 4 && Math.sign(delta12) !== Math.sign(delta48);
   if (unstable) return 'unstable';
   if (delta12 < -3) return 'falling';
   if (delta12 > 3)  return 'rising';
@@ -103,17 +129,30 @@ function checkSpawnPeriod(species, waterTemp, month) {
   return null;
 }
 
-function getWeatherDataForTime(hourlyData, targetTime, timePeriod) {
-  const periodHours = { morning: [5, 10], day: [10, 17], evening: [17, 22], night: [22, 29] };
-  const [hStart, hEnd] = periodHours[timePeriod];
-  const dateStr = new Date(targetTime).toISOString().slice(0, 10);
+// ── Погода за выбранный период ───────────────────────────────
+// «Ночь» даты X = часы 22–23 даты X + часы 0–4 даты X+1
+// (ночь, НАСТУПАЮЩАЯ после выбранного дня, а не прошедшая).
+// Остальные периоды — часы внутри выбранной даты.
+function getWeatherDataForTime(hourlyData, dateStr, timePeriod) {
+  const periodHours = { morning: [5, 10], day: [10, 17], evening: [17, 22] };
   const slices = [];
-  for (let i = 0; i < hourlyData.time.length; i++) {
-    const t = new Date(hourlyData.time[i]);
-    const tHour = t.getHours();
-    const inPeriod = timePeriod === 'night' ? (tHour >= 22 || tHour < 5) : (tHour >= hStart && tHour < hEnd);
-    if (t.toISOString().slice(0, 10) === dateStr && inPeriod) slices.push(i);
+
+  const collect = (ds, hStart, hEnd) => {
+    for (let h = hStart; h < hEnd; h++) {
+      const idx = findHourIndex(hourlyData, ds, h);
+      if (idx !== -1) slices.push(idx);
+    }
+  };
+
+  if (timePeriod === 'night') {
+    collect(dateStr, 22, 24);
+    collect(dateShift(dateStr, 1), 0, 5);
+  } else {
+    const range = periodHours[timePeriod];
+    if (!range) return null;
+    collect(dateStr, range[0], range[1]);
   }
+
   if (slices.length === 0) return null;
   const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
   const totalPrecip = slices.map(i => hourlyData.precipitation[i]).reduce((a, b) => a + b, 0);
@@ -207,20 +246,24 @@ function buildRecommendation(species, method, lightCondition, rainCat, windCat) 
   return sp[m][condition] || sp[m]['cloudy'];
 }
 
+// analyze(params, hourlyData)
+// params.targetDate — строка 'YYYY-MM-DD' (дата ловли)
 function analyze(params, hourlyData) {
   const { species, method, waterType, timePeriod, targetDate } = params;
   const sp = SPECIES_DATA[species];
   if (!sp) return null;
 
-  const weather = getWeatherDataForTime(hourlyData, targetDate, timePeriod);
+  const dateStr = targetDate.slice(0, 10);
+
+  const weather = getWeatherDataForTime(hourlyData, dateStr, timePeriod);
   if (!weather) return null;
 
-  const waterTemp      = getWaterTemp(hourlyData, waterType);
-  const pressureTrend  = getPressureTrend(hourlyData, targetDate);
+  const waterTemp      = getWaterTemp(hourlyData, waterType, dateStr);
+  const pressureTrend  = getPressureTrend(hourlyData, dateStr, timePeriod);
   const windCat        = getWindCategory(weather.windspeed);
   const lightCondition = getLightCondition(weather.cloudcover);
   const rainCat        = getRainCategory(weather.precipitation, weather.precipHours);
-  const month          = new Date(targetDate).getMonth() + 1;
+  const month          = parseInt(dateStr.slice(5, 7), 10);
   const spawnStatus    = checkSpawnPeriod(species, waterTemp, month);
   const season         = getSeason(month);
 
