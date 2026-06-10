@@ -105,6 +105,25 @@ body {
 
 .rating-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 500; border: 1px solid; }
 
+/* ── Разбивка score по факторам ── */
+.score-breakdown { margin-top: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.score-breakdown summary { font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); padding: 11px 14px; cursor: pointer; user-select: none; transition: color 0.15s; list-style: none; display: flex; align-items: center; gap: 8px; }
+.score-breakdown summary::-webkit-details-marker { display: none; }
+.score-breakdown summary::before { content: '▸'; font-size: 10px; transition: transform 0.15s; }
+.score-breakdown[open] summary::before { transform: rotate(90deg); }
+.score-breakdown summary:hover { color: var(--accent); }
+.breakdown-rows { padding: 4px 14px 10px; display: flex; flex-direction: column; }
+.bd-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.bd-row:last-child { border-bottom: none; }
+.bd-label { color: var(--text-dim); }
+.bd-val { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.bd-pos { color: var(--good); }
+.bd-neg { color: var(--bad); }
+.bd-total { border-top: 1px solid var(--border2); margin-top: 2px; }
+.bd-total .bd-label { color: var(--text); font-weight: 500; }
+.bd-total .bd-val { color: #fff; }
+.breakdown-note { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; line-height: 1.55; padding: 0 14px 12px; }
+
 .spawn-warning { background: rgba(184,92,78,0.1); border: 1px solid rgba(184,92,78,0.35); border-radius: 6px; padding: 12px 16px; font-size: 13px; color: #e09080; line-height: 1.6; margin-bottom: 16px; }
 
 .rec-details { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
