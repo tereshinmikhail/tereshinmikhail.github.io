@@ -1,9 +1,6 @@
 // ============================================================
-// WEATHER ADVISOR — app.js v3.1
-// v3.1: timezone=auto (локальное время точки ловли),
-// past_days=5 (покрытие окна расчёта темп. воды до 120ч),
-// forecast_days=8 (полная ночь последнего дня),
-// локальная дата в чипах, textContent для данных Nominatim.
+// WEATHER ADVISOR — app.js v4
+// v4: рендер разбивки score по факторам (блок «Как посчитана оценка»)
 // ============================================================
 
 const state = {
@@ -174,10 +171,9 @@ function checkReady() {
 
 async function fetchWeather(lat, lon) {
   // timezone=auto: время в ответе — локальное для точки ловли.
-  // past_days=5: окно расчёта температуры воды (до 120ч назад)
-  // должно быть покрыто данными даже для рыбалки «сегодня».
-  // forecast_days=8: ночь последнего выбираемого дня (день 7)
-  // захватывает часы 0–5 дня 8.
+  // past_days=5: окно расчёта температуры воды и динамики (до 120ч назад).
+  // forecast_days=8: ночь последнего выбираемого дня захватывает
+  // часы 0–5 следующего.
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&hourly=temperature_2m,pressure_msl,precipitation,cloudcover,windspeed_10m,winddirection_10m` +
     `&past_days=5&forecast_days=8&timezone=auto`;
@@ -193,6 +189,22 @@ async function fetchWeather(lat, lon) {
     if (e.name === 'AbortError') throw new Error('timeout');
     throw e;
   }
+}
+
+function renderBreakdown(result) {
+  const wrap = document.getElementById('score-breakdown');
+  const rows = document.getElementById('breakdown-rows');
+  if (!result.breakdown || result.breakdown.length === 0) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  wrap.open = false;
+  const fmt = v => `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1).replace('.0', '')}`;
+  rows.innerHTML = result.breakdown.map(b =>
+    `<div class="bd-row"><span class="bd-label">${b.label}</span><span class="bd-val ${b.value > 0 ? 'bd-pos' : 'bd-neg'}">${fmt(b.value)}</span></div>`
+  ).join('') +
+  `<div class="bd-row bd-total"><span class="bd-label">Итого</span><span class="bd-val">${result.score > 0 ? '+' : ''}${result.score}</span></div>`;
 }
 
 function renderResult(result) {
@@ -212,6 +224,7 @@ function renderResult(result) {
     { icon: '☁',  value: cloudText,   label: 'Облачность' },
     { icon: '🌧', value: rainText,    label: 'Осадки' },
     result.waterTemp !== null ? { icon: '🌊', value: `~${result.waterTemp.toFixed(1)}°C`, label: 'Темп. воды (расч.)' } : null,
+    result.tempDelta !== null ? { icon: '📈', value: `${result.tempDelta > 0 ? '+' : ''}${result.tempDelta}°`, label: 'Динамика темп., 48ч' } : null,
   ].filter(Boolean);
 
   document.getElementById('weather-grid').innerHTML = items.map(it =>
@@ -229,6 +242,8 @@ function renderResult(result) {
   badge.style.color = cfg.color;
   badge.style.borderColor = cfg.color;
   badge.style.background = `${cfg.color}18`;
+
+  renderBreakdown(result);
 
   const spawnWarn = document.getElementById('spawn-warning');
   if (result.spawnWarning) { spawnWarn.textContent = '⚠ ' + result.spawnWarning; spawnWarn.hidden = false; }
