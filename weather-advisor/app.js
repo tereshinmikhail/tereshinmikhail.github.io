@@ -1,5 +1,9 @@
 // ============================================================
-// WEATHER ADVISOR — app.js v3
+// WEATHER ADVISOR — app.js v3.1
+// v3.1: timezone=auto (локальное время точки ловли),
+// past_days=5 (покрытие окна расчёта темп. воды до 120ч),
+// forecast_days=8 (полная ночь последнего дня),
+// локальная дата в чипах, textContent для данных Nominatim.
 // ============================================================
 
 const state = {
@@ -15,7 +19,7 @@ const coordsInput   = document.getElementById('coords-input');
 const coordsError   = document.getElementById('coords-error');
 const dateChips     = document.getElementById('date-chips');
 const accuracyWarn  = document.getElementById('accuracy-warning');
-const submitBtn     = document.getElementById('submit-btn');
+const submitBtn    = document.getElementById('submit-btn');
 const submitLabel   = document.getElementById('submit-label');
 const submitLoader  = document.getElementById('submit-loader');
 const apiError      = document.getElementById('api-error');
@@ -23,6 +27,14 @@ const resultSection = document.getElementById('result-section');
 
 // гПа → мм рт.ст.
 function hpaToMmhg(hpa) { return Math.round(hpa / 1.33322); }
+
+// Локальная дата → 'YYYY-MM-DD' (без UTC-сдвига toISOString)
+function toLocalISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function initDateChips() {
   const today = new Date();
@@ -35,12 +47,13 @@ function initDateChips() {
     btn.className = 'chip';
     btn.dataset.group = 'date';
     btn.dataset.value = i;
-    btn.dataset.iso = d.toISOString().slice(0, 10);
+    btn.dataset.iso = toLocalISO(d);
     btn.innerHTML = i === 0 ? 'Сегодня' : i === 1 ? 'Завтра' : `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
     dateChips.appendChild(btn);
   }
-  selectChip(dateChips.querySelector('.chip'), 'date');
-  state.date = new Date().toISOString().slice(0, 10);
+  const first = dateChips.querySelector('.chip');
+  selectChip(first, 'date');
+  state.date = first.dataset.iso;
   state.dateIndex = 0;
 }
 
@@ -80,8 +93,11 @@ cityInput.addEventListener('blur', () => {
 
 async function searchCity(query) {
   try {
+    // Идентификация по политике Nominatim: браузер автоматически
+    // отправляет Referer (tereshinmikhail.github.io); заголовок
+    // User-Agent из fetch браузеры игнорируют, поэтому не ставим.
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&accept-language=ru`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'fishing-weather-advisor/1.0 (tereshinmikhail.github.io)' } });
+    const res = await fetch(url);
     if (!res.ok) throw new Error();
     const data = await res.json();
     cityDropdown.innerHTML = '';
@@ -106,7 +122,12 @@ async function searchCity(query) {
       const parts = item.display_name.split(',');
       const main = parts[0].trim();
       const sub  = parts.slice(1, 3).join(',').trim();
-      el.innerHTML = `${main}<span class="city-option-sub">${sub}</span>`;
+      // textContent вместо innerHTML — данные внешнего API
+      el.textContent = main;
+      const subEl = document.createElement('span');
+      subEl.className = 'city-option-sub';
+      subEl.textContent = sub;
+      el.appendChild(subEl);
       el.addEventListener('click', () => {
         applyCoords(parseFloat(item.lat), parseFloat(item.lon));
         cityInput.value = main;
@@ -152,9 +173,14 @@ function checkReady() {
 }
 
 async function fetchWeather(lat, lon) {
+  // timezone=auto: время в ответе — локальное для точки ловли.
+  // past_days=5: окно расчёта температуры воды (до 120ч назад)
+  // должно быть покрыто данными даже для рыбалки «сегодня».
+  // forecast_days=8: ночь последнего выбираемого дня (день 7)
+  // захватывает часы 0–5 дня 8.
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&hourly=temperature_2m,pressure_msl,precipitation,cloudcover,windspeed_10m,winddirection_10m` +
-    `&past_days=2&forecast_days=7&timezone=Europe%2FMoscow`;
+    `&past_days=5&forecast_days=8&timezone=auto`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
@@ -239,7 +265,7 @@ submitBtn.addEventListener('click', async () => {
     const hourlyData = await fetchWeather(state.lat, state.lon);
     state.hourlyData = hourlyData;
     const result = analyze(
-      { species: state.species, method: state.method, waterType: state.watertype, timePeriod: state.time, targetDate: state.date + 'T12:00:00' },
+      { species: state.species, method: state.method, waterType: state.watertype, timePeriod: state.time, targetDate: state.date },
       hourlyData
     );
     if (!result) throw new Error('no_data');
