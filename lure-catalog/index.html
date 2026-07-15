@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+   (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=109350380','ym');
+   ym(109350380,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:"dataLayer",referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/109350380" style="position:absolute;left:-9999px;" alt=""/></div></noscript>
+<!-- /Yandex.Metrika counter -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Каталог приманок</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="page-header">
+  <div class="header-inner">
+    <a href="../" class="back-link">&larr; все инструменты</a>
+    <h1>Каталог приманок</h1>
+    <p class="subtitle">Твои приманки + советник по подбору под условия ловли</p>
+  </div>
+</header>
+
+<main class="content">
+  <div class="layout">
+
+    <div class="tabs" role="tablist">
+      <button class="chip tab-btn chip--active" data-tab="advisor">Советник</button>
+      <button class="chip tab-btn" data-tab="catalog">Весь каталог</button>
+    </div>
+
+    <!-- ======================= СОВЕТНИК ======================= -->
+    <div id="advisor-tab">
+
+      <section class="form-section">
+
+        <div class="form-group">
+          <label class="group-label">Глубина места, м</label>
+          <input type="number" id="depth-input" class="text-input" placeholder="напр. 2" min="0" step="0.1" inputmode="decimal">
+        </div>
+
+        <div class="form-group">
+          <label class="group-label">Желаемое расстояние от дна, м</label>
+          <input type="number" id="offset-input" class="text-input" placeholder="напр. 0.5" min="0" step="0.1" inputmode="decimal">
+          <p class="hint">0 = вести у самого дна. Целевая глубина считается как «глубина места минус это число».</p>
+        </div>
+
+        <div class="form-group">
+          <label class="group-label">Тип дна</label>
+          <div class="chip-group" role="group" aria-label="Тип дна">
+            <button class="chip" data-group="bottom" data-value="sand">Песок / ил</button>
+            <button class="chip" data-group="bottom" data-value="grass">Трава</button>
+            <button class="chip" data-group="bottom" data-value="snag">Коряги</button>
+            <button class="chip" data-group="bottom" data-value="rock">Камни</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="group-label">Течение</label>
+          <div class="chip-group" role="group" aria-label="Течение">
+            <button class="chip" data-group="current" data-value="none">Нет</button>
+            <button class="chip" data-group="current" data-value="weak">Слабое</button>
+            <button class="chip" data-group="current" data-value="medium">Среднее</button>
+            <button class="chip" data-group="current" data-value="strong">Сильное</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="group-label">Мутность воды</label>
+          <div class="chip-group" role="group" aria-label="Мутность воды">
+            <button class="chip" data-group="clarity" data-value="clear">Прозрачная</button>
+            <button class="chip" data-group="clarity" data-value="stained">Слегка мутная</button>
+            <button class="chip" data-group="clarity" data-value="murky">Мутная</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="group-label">Целевой вид (необязательно)</label>
+          <div class="chip-group" role="group" aria-label="Целевой вид">
+            <button class="chip" data-group="species" data-value="pike">Щука</button>
+            <button class="chip" data-group="species" data-value="zander">Судак</button>
+            <button class="chip" data-group="species" data-value="perch">Окунь</button>
+            <button class="chip" data-group="species" data-value="asp">Жерех</button>
+            <button class="chip" data-group="species" data-value="chub">Голавль</button>
+          </div>
+        </div>
+
+        <button id="submit-btn" class="submit-btn" disabled>Подобрать приманки</button>
+
+      </section>
+
+      <section id="result-section" class="result-section" hidden style="margin-top:32px;">
+
+        <div class="result-block">
+          <div class="block-label">Целевая глубина</div>
+          <p id="target-depth-summary" class="hint" style="font-size:13px;"></p>
+        </div>
+
+        <div class="block-label" style="margin-top:8px;">Подходящие приманки</div>
+        <div id="ranked-list" style="display:flex;flex-direction:column;gap:14px;"></div>
+
+        <div id="excluded-block" class="result-block" hidden>
+          <div class="block-label">Не рекомендуется на этом дне</div>
+          <ul id="excluded-list" class="excluded-list"></ul>
+        </div>
+
+        <p class="hint">Скоринг: горизонт (основной вес) → тип дна (жёсткий фильтр) → течение/вес (модификатор) → мутность/цвет и вид рыбы (мягкий бонус). Логика и источники — в RESEARCH.md репозитория.</p>
+
+      </section>
+
+    </div>
+
+    <!-- ======================= ВЕСЬ КАТАЛОГ ======================= -->
+    <div id="catalog-tab" hidden>
+      <div class="block-label">Все приманки (сейчас — тестовый набор)</div>
+      <div id="catalog-grid" class="catalog-grid"></div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="page-footer">
+  <p>Личный каталог приманок · тестовые данные, реальный список — по мере внесения</p>
+</footer>
+
+<script src="data/lures-data.js"></script>
+<script src="logic/scoring.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
